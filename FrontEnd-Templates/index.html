@@ -13,29 +13,15 @@
             <p>Comprehensive bug tracking and management system</p>
         </div>
 
-        <!-- Statistics Section -->
-        <div class="stats-container">
-            <div class="stat-card">
-                <div class="stat-number total" id="totalBugs">0</div>
-                <div class="stat-label">Total Bugs</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number open" id="openBugs">0</div>
-                <div class="stat-label">Open Bugs</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number closed" id="closedBugs">0</div>
-                <div class="stat-label">Resolved Bugs</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number severity" id="commonSeverity">-</div>
-                <div class="stat-label">Most Common Severity</div>
-            </div>
-        </div>
+        <!-- Navigation -->
+        <nav class="navigation">
+            <button class="nav-btn active" data-page="create">Create Bug</button>
+            <button class="nav-btn" data-page="list">Bug List</button>
+            <button class="nav-btn" data-page="stats">Statistics</button>
+        </nav>
 
-        <!-- Main Content -->
-        <div class="main-content">
-            <!-- Bug Submission Form -->
+        <!-- Create Bug Page -->
+        <div id="createPage" class="page active">
             <div class="form-section">
                 <h2 class="section-title">Submit New Bug Report</h2>
                 <form id="bugForm">
@@ -65,11 +51,13 @@
                         <input type="text" id="reporter" name="reporter" required placeholder="Your name">
                     </div>
                     
-                    <button type="submit" class="btn">Submit Bug Report</button>
+                    <button type="submit" class="btn btn-primary">Submit Bug Report</button>
                 </form>
             </div>
+        </div>
 
-            <!-- Bug List Table -->
+        <!-- Bug List Page -->
+        <div id="listPage" class="page">
             <div class="table-section">
                 <h2 class="section-title">Bug Reports</h2>
                 
@@ -101,18 +89,87 @@
                                 <th>Reporter</th>
                                 <th>Status</th>
                                 <th>Date</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="bugTableBody">
                             <tr class="no-bugs">
-                                <td colspan="6">No bugs reported yet. Submit your first bug report!</td>
+                                <td colspan="7">No bugs reported yet. Submit your first bug report!</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
+
+        <!-- Statistics Page -->
+        <div id="statsPage" class="page">
+            <div class="stats-section">
+                <h2 class="section-title">Bug Statistics Overview</h2>
+                
+                <!-- Statistics Cards -->
+                <div class="stats-container">
+                    <div class="stat-card">
+                        <div class="stat-number total" id="totalBugs">0</div>
+                        <div class="stat-label">Total Bugs</div>
+                        <div class="stat-description">All bugs ever reported</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number open" id="openBugs">0</div>
+                        <div class="stat-label">Open Bugs</div>
+                        <div class="stat-description">Bugs awaiting resolution</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number closed" id="closedBugs">0</div>
+                        <div class="stat-label">Resolved Bugs</div>
+                        <div class="stat-description">Successfully fixed bugs</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number severity" id="commonSeverity">-</div>
+                        <div class="stat-label">Most Common Severity</div>
+                        <div class="stat-description">Most frequent bug type</div>
+                    </div>
+                </div>
+
+                <!-- Detailed Statistics -->
+                <div class="detailed-stats">
+                    <div class="stats-chart">
+                        <h3>Severity Distribution</h3>
+                        <div class="severity-breakdown" id="severityBreakdown">
+                            <div class="severity-item">
+                                <span class="severity-badge severity-low">Low</span>
+                                <span class="severity-count" id="lowCount">0</span>
+                            </div>
+                            <div class="severity-item">
+                                <span class="severity-badge severity-medium">Medium</span>
+                                <span class="severity-count" id="mediumCount">0</span>
+                            </div>
+                            <div class="severity-item">
+                                <span class="severity-badge severity-high">High</span>
+                                <span class="severity-count" id="highCount">0</span>
+                            </div>
+                            <div class="severity-item">
+                                <span class="severity-badge severity-critical">Critical</span>
+                                <span class="severity-count" id="criticalCount">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stats-chart">
+                        <h3>Recent Activity</h3>
+                        <div class="activity-summary" id="activitySummary">
+                            <p>Bugs created this week: <span id="thisWeekCount">0</span></p>
+                            <p>Bugs resolved this week: <span id="resolvedThisWeekCount">0</span></p>
+                            <p>Average resolution time: <span id="avgResolutionTime">N/A</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
+
+    <!-- Toast Container for Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
 
     <script src="script.js"></script>
 </body>
