@@ -76,7 +76,7 @@
 git clone https://github.com/MohamedZidane11/frontend-bug-tracker-web-app.git
 
 # Navigate to project directory
-cd Django-Bug-Tracker-WepApp
+cd frontend-bug-tracker-web-app
 
 # Open in your preferred code editor
 code .
@@ -170,12 +170,12 @@ The app is deployed on Vercel and automatically updates with each push:
 We welcome contributions! Here's how you can help:
 
 ### 🐛 **Found a Bug?**
-1. 🔍 Check if it's already reported in [Issues](https://github.com/yourusername/bug-tracker-pro/issues)
+1. 🔍 Check if it's already reported in [Issues](https://github.com/MohamedZidane11/frontend-bug-tracker-web-app/issues)
 2. 📝 Create a detailed bug report
 3. 🏷️ Add appropriate labels
 
 ### 💡 **Have a Feature Idea?**
-1. 💭 Open an [Issue](https://github.com/yourusername/bug-tracker-pro/issues) with the `enhancement` label
+1. 💭 Open an [Issue](https://github.com/MohamedZidane11/frontend-bug-tracker-web-app/issues) with the `enhancement` label
 2. 📋 Describe the feature and its benefits
 3. 🗣️ Engage in discussion with maintainers
 
@@ -184,7 +184,7 @@ We welcome contributions! Here's how you can help:
 ```bash
 # Fork the repository
 # Clone your fork
-git clone https://github.com/yourusername/bug-tracker-pro.git
+git clone https://github.com/MohamedZidane11/frontend-bug-tracker-web-app.git
 
 # Create a feature branch
 git checkout -b feature/amazing-feature
