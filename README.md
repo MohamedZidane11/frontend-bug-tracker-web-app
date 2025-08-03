@@ -161,7 +161,7 @@ bug-tracker-pro/
 
 The app is deployed on Vercel and automatically updates with each push:
 
-**🔗 Live URL**: [https://django-bug-tracker-wep-app.vercel.app/](https://django-bug-tracker-wep-app.vercel.app/)
+**🔗 Live URL**: https://frontend-bug-tracker-web-app.vercel.app/
 
 ---
 
