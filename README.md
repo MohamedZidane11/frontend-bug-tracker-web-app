@@ -73,7 +73,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/MohamedZidane11/Django-Bug-Tracker-WepApp.git
+git clone https://github.com/MohamedZidane11/frontend-bug-tracker-web-app.git
 
 # Navigate to project directory
 cd Django-Bug-Tracker-WepApp
