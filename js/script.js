@@ -104,13 +104,15 @@ class BugTracker {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             
-            this.bugs = await response.json();
-            this.filteredBugs = [...this.bugs];
-            // In loadBugsFromAPI(), after getting response
-            this.bugs = (await response.json()).map(bug => ({
-            ...bug,
-            id: bug.bug_id  // map bug_id → id
+            const data = await response.json();  // Read ONCE
+
+            // Map bug_id → id for frontend use
+            this.bugs = data.map(bug => ({
+                ...bug,
+                id: bug.bug_id || bug.id  // prefer bug_id, fallback to id
             }));
+            
+            this.filteredBugs = [...this.bugs];
             
         } catch (error) {
             console.error('Error loading bugs:', error);
