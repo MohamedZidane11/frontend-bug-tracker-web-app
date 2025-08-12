@@ -106,6 +106,11 @@ class BugTracker {
             
             this.bugs = await response.json();
             this.filteredBugs = [...this.bugs];
+            // In loadBugsFromAPI(), after getting response
+            this.bugs = (await response.json()).map(bug => ({
+            ...bug,
+            id: bug.bug_id  // map bug_id → id
+            }));
             
         } catch (error) {
             console.error('Error loading bugs:', error);
@@ -136,7 +141,7 @@ class BugTracker {
             title: title,
             description: description,
             severity: severity,
-            reporter_name: reporter // Django expects 'reporter_name'
+            reporter: reporter // Django expects 'reporter_name'
         };
 
         try {
@@ -199,8 +204,7 @@ class BugTracker {
 
     // Convert Django status to display status
     getDisplayStatus(bug) {
-        if (bug.status === 'resolved') return 'resolved';
-        return 'open';
+        return bug.status; // Just return the actual status
     }
 
     renderBugs() {
@@ -226,7 +230,7 @@ class BugTracker {
                         ${bug.severity}
                     </span>
                 </td>
-                <td>${this.escapeHtml(bug.reporter_name)}</td>
+                <td>${this.escapeHtml(bug.reporter)}</td>
                 <td>
                     <span class="status-badge status-${this.getDisplayStatus(bug)}" onclick="bugTracker.toggleStatus(${bug.id})">
                         ${this.getDisplayStatus(bug)}
