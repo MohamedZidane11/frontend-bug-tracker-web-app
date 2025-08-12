@@ -50,24 +50,42 @@ class BugTracker {
                 this.showPage(page);
             });
         });
-
+    
         // Form submission
         document.getElementById('bugForm').addEventListener('submit', (e) => {
             e.preventDefault();
             this.submitBug();
         });
-
-        // Search and filter (only bind if elements exist)
+    
+        // Search and filter
         const searchInput = document.getElementById('searchInput');
         const severityFilter = document.getElementById('severityFilter');
         const statusFilter = document.getElementById('statusFilter');
-
+    
         if (searchInput) searchInput.addEventListener('input', () => this.filterBugs());
         if (severityFilter) severityFilter.addEventListener('change', () => this.filterBugs());
         if (statusFilter) statusFilter.addEventListener('change', () => this.filterBugs());
-
-        // Close status dropdowns when clicking outside
-        document.addEventListener('click', (e) => this.closeStatusDropdowns(e));
+    
+        // ✅ Event delegation for status dropdowns
+        document.addEventListener('click', (e) => {
+            // Handle toggle status dropdown
+            if (e.target.matches('[data-action="toggle-status"]')) {
+                const bugId = e.target.getAttribute('data-bug-id');
+                this.toggleStatusDropdown(bugId);
+            }
+    
+            // Handle update status
+            if (e.target.matches('[data-action="update-status"]')) {
+                const bugId = e.target.getAttribute('data-bug-id');
+                const status = e.target.getAttribute('data-status');
+                this.updateBugStatus(bugId, status);
+            }
+    
+            // Close dropdowns when clicking outside
+            if (!e.target.closest('.status-dropdown')) {
+                this.closeStatusDropdowns();
+            }
+        });
     }
 
     async showPage(pageId) {
@@ -139,7 +157,7 @@ class BugTracker {
             title: title,
             description: description,
             severity: severity,
-            reporter_name: reporter // Django expects 'reporter_name'
+            reporter: reporter // Django expects 'reporter_name'
         };
 
         try {
@@ -265,12 +283,12 @@ class BugTracker {
                 <td>${this.escapeHtml(bug.reporter_name)}</td>
                 <td>
                     <div class="status-dropdown">
-                        <span class="status-badge ${this.getStatusClass(this.getDisplayStatus(bug))}" onclick="bugTracker.toggleStatusDropdown(${bug.id})">
-                            ${this.getStatusDisplayName(this.getDisplayStatus(bug))} ▼
+                        <span class="status-badge ..." data-action="toggle-status" data-bug-id="${bug.id}">
+                        ${this.getStatusDisplayName(this.getDisplayStatus(bug))} ▼
                         </span>
                         <div class="status-options" id="statusOptions${bug.id}" style="display: none;">
                             ${this.getStatusTransitions(this.getDisplayStatus(bug)).map(status => `
-                                <div class="status-option" onclick="bugTracker.updateBugStatus(${bug.id}, '${status}')">
+                            <div class="status-option" data-action="update-status" data-bug-id="${bug.id}" data-status="${status}">
                                     <span class="status-badge ${this.getStatusClass(status)}">${this.getStatusDisplayName(status)}</span>
                                 </div>
                             `).join('')}
@@ -304,12 +322,10 @@ class BugTracker {
     }
 
     // Close dropdowns when clicking outside
-    closeStatusDropdowns(event) {
-        if (!event.target.closest('.status-dropdown')) {
-            document.querySelectorAll('.status-options').forEach(dropdown => {
-                dropdown.style.display = 'none';
-            });
-        }
+    closeStatusDropdowns() {
+        document.querySelectorAll('.status-options').forEach(dropdown => {
+            dropdown.style.display = 'none';
+        });
     }
 
     async updateBugStatus(bugId, newStatus) {
