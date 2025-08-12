@@ -1,45 +1,18 @@
 class BugTracker {
     constructor() {
-        // API Configuration - REPLACE WITH YOUR RAILWAY URL
-        this.API_CONFIG = {
-            BASE_URL: 'https://web-production-8cf83.up.railway.app', // Replace with your Railway URL
-            ENDPOINTS: {
-                bugs: '/api/bugs/',
-                bugStats: '/api/bug-stats/',
-                bugDetail: (id) => `/api/bugs/${id}/`
-            }
-        };
-
-        this.bugs = [];
-        this.filteredBugs = [];
+        this.bugs = JSON.parse(localStorage.getItem('bugs') || '[]');
+        this.nextId = parseInt(localStorage.getItem('nextBugId') || '1');
+        this.filteredBugs = [...this.bugs];
         this.currentPage = 'create';
-        this.loading = false;
         
         this.init();
     }
 
-    async init() {
+    init() {
         this.bindEvents();
-        await this.testConnection();
-        await this.loadBugsFromAPI();
+        this.renderBugs();
+        this.updateStats();
         this.showPage('create');
-    }
-
-    // Test connection to Django backend
-    async testConnection() {
-        try {
-            const response = await fetch(`${this.API_CONFIG.BASE_URL}${this.API_CONFIG.ENDPOINTS.bugs}`);
-            if (response.ok) {
-                console.log('✅ Successfully connected to Django backend');
-                this.showToast('Connected to backend successfully!', 'success');
-            } else {
-                console.warn('⚠️ Backend connection issue:', response.status);
-                this.showToast('Warning: Backend connection issue', 'warning');
-            }
-        } catch (error) {
-            console.error('❌ Backend connection failed:', error);
-            this.showToast('Error: Could not connect to backend', 'error');
-        }
     }
 
     bindEvents() {
@@ -67,7 +40,7 @@ class BugTracker {
         if (statusFilter) statusFilter.addEventListener('change', () => this.filterBugs());
     }
 
-    async showPage(pageId) {
+    showPage(pageId) {
         // Update navigation
         document.querySelectorAll('.nav-btn').forEach(btn => {
             btn.classList.remove('active');
@@ -84,40 +57,14 @@ class BugTracker {
 
         // Refresh data for the current page
         if (pageId === 'list') {
-            await this.loadBugsFromAPI();
             this.filterBugs();
         } else if (pageId === 'stats') {
-            await this.loadBugsFromAPI();
-            await this.updateStatsFromAPI();
+            this.updateStats();
+            this.updateDetailedStats();
         }
     }
 
-    // Load bugs from Django API
-    async loadBugsFromAPI() {
-        if (this.loading) return;
-        
-        try {
-            this.loading = true;
-            const response = await fetch(`${this.API_CONFIG.BASE_URL}${this.API_CONFIG.ENDPOINTS.bugs}`);
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            this.bugs = await response.json();
-            this.filteredBugs = [...this.bugs];
-            
-        } catch (error) {
-            console.error('Error loading bugs:', error);
-            this.showToast('Error loading bugs: ' + error.message, 'error');
-            this.bugs = [];
-            this.filteredBugs = [];
-        } finally {
-            this.loading = false;
-        }
-    }
-
-    async submitBug() {
+    submitBug() {
         const form = document.getElementById('bugForm');
         const formData = new FormData(form);
         
@@ -132,47 +79,30 @@ class BugTracker {
             return;
         }
 
-        const bugData = {
+        const bug = {
+            id: this.nextId++,
             title: title,
             description: description,
             severity: severity,
-            reporter_name: reporter // Django expects 'reporter_name'
+            reporter: reporter,
+            status: 'open',
+            dateCreated: new Date().toISOString(),
+            dateUpdated: new Date().toISOString()
         };
 
-        try {
-            this.showToast('Submitting bug report...', 'info');
-            
-            const response = await fetch(`${this.API_CONFIG.BASE_URL}${this.API_CONFIG.ENDPOINTS.bugs}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(bugData)
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const newBug = await response.json();
-            
-            // Reset form
-            form.reset();
-            
-            // Show success message
-            this.showToast(`Bug #${newBug.id} "${title}" has been created successfully!`, 'success');
-            
-            // Refresh data if on other pages
-            await this.loadBugsFromAPI();
-            if (this.currentPage === 'list') {
-                this.filterBugs();
-            } else if (this.currentPage === 'stats') {
-                await this.updateStatsFromAPI();
-            }
-            
-        } catch (error) {
-            console.error('Error creating bug:', error);
-            this.showToast('Error creating bug: ' + error.message, 'error');
+        this.bugs.unshift(bug); // Add to beginning for newest first
+        this.saveBugs();
+        
+        // Reset form
+        form.reset();
+        
+        // Show success message
+        this.showToast(`Bug #${bug.id} "${title}" has been created successfully!`, 'success');
+        
+        // Update UI if on other pages
+        this.updateStats();
+        if (this.currentPage === 'list') {
+            this.filterBugs();
         }
     }
 
@@ -189,18 +119,12 @@ class BugTracker {
             const matchesSearch = bug.title.toLowerCase().includes(searchTerm) || 
                                 bug.description.toLowerCase().includes(searchTerm);
             const matchesSeverity = !severityFilterValue || bug.severity === severityFilterValue;
-            const matchesStatus = !statusFilterValue || this.getDisplayStatus(bug) === statusFilterValue;
+            const matchesStatus = !statusFilterValue || bug.status === statusFilterValue;
             
             return matchesSearch && matchesSeverity && matchesStatus;
         });
 
         this.renderBugs();
-    }
-
-    // Convert Django status to display status
-    getDisplayStatus(bug) {
-        if (bug.status === 'resolved') return 'resolved';
-        return 'open';
     }
 
     renderBugs() {
@@ -226,13 +150,13 @@ class BugTracker {
                         ${bug.severity}
                     </span>
                 </td>
-                <td>${this.escapeHtml(bug.reporter_name)}</td>
+                <td>${this.escapeHtml(bug.reporter)}</td>
                 <td>
-                    <span class="status-badge status-${this.getDisplayStatus(bug)}" onclick="bugTracker.toggleStatus(${bug.id})">
-                        ${this.getDisplayStatus(bug)}
+                    <span class="status-badge status-${bug.status}" onclick="bugTracker.toggleStatus(${bug.id})">
+                        ${bug.status}
                     </span>
                 </td>
-                <td>${this.formatDate(bug.created_at)}</td>
+                <td>${new Date(bug.dateCreated).toLocaleDateString()}</td>
                 <td>
                     <button class="btn btn-danger" onclick="bugTracker.deleteBug(${bug.id})">
                         Delete
@@ -242,118 +166,35 @@ class BugTracker {
         `).join('');
     }
 
-    async toggleStatus(bugId) {
+    toggleStatus(bugId) {
         const bug = this.bugs.find(b => b.id === bugId);
-        if (!bug) return;
-
-        const currentStatus = this.getDisplayStatus(bug);
-        const newStatus = currentStatus === 'resolved' ? 'unresolved' : 'resolved';
-        
-        try {
-            const response = await fetch(`${this.API_CONFIG.BASE_URL}${this.API_CONFIG.ENDPOINTS.bugDetail(bugId)}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ status: newStatus })
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const action = newStatus === 'resolved' ? 'resolved' : 'reopened';
-            this.showToast(`Bug #${bugId} has been ${action}!`, 'info');
-            
-            // Refresh data
-            await this.loadBugsFromAPI();
+        if (bug) {
+            const oldStatus = bug.status;
+            bug.status = bug.status === 'open' ? 'resolved' : 'open';
+            bug.dateUpdated = new Date().toISOString();
+            this.saveBugs();
             this.filterBugs();
-            if (this.currentPage === 'stats') {
-                await this.updateStatsFromAPI();
-            }
-            
-        } catch (error) {
-            console.error('Error updating bug status:', error);
-            this.showToast('Error updating bug status: ' + error.message, 'error');
-        }
-    }
-
-    async deleteBug(bugId) {
-        const bug = this.bugs.find(b => b.id === bugId);
-        if (!bug || !confirm(`Are you sure you want to delete bug #${bugId}: "${bug.title}"?`)) {
-            return;
-        }
-
-        try {
-            const response = await fetch(`${this.API_CONFIG.BASE_URL}${this.API_CONFIG.ENDPOINTS.bugDetail(bugId)}`, {
-                method: 'DELETE'
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            this.showToast(`Bug #${bugId} has been deleted!`, 'warning');
-            
-            // Refresh data
-            await this.loadBugsFromAPI();
-            this.filterBugs();
-            if (this.currentPage === 'stats') {
-                await this.updateStatsFromAPI();
-            }
-            
-        } catch (error) {
-            console.error('Error deleting bug:', error);
-            this.showToast('Error deleting bug: ' + error.message, 'error');
-        }
-    }
-
-    // Load statistics from Django API
-    async updateStatsFromAPI() {
-        try {
-            const response = await fetch(`${this.API_CONFIG.BASE_URL}${this.API_CONFIG.ENDPOINTS.bugStats}`);
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const stats = await response.json();
-            this.updateStatsDisplay(stats);
-            
-        } catch (error) {
-            console.error('Error loading statistics:', error);
-            this.showToast('Error loading statistics: ' + error.message, 'error');
-            // Fallback to local calculation
             this.updateStats();
+            
+            const action = bug.status === 'open' ? 'reopened' : 'resolved';
+            this.showToast(`Bug #${bugId} has been ${action}!`, 'info');
         }
     }
 
-    updateStatsDisplay(stats) {
-        // Update main stat cards from API response
-        const elements = {
-            totalBugs: document.getElementById('totalBugs'),
-            openBugs: document.getElementById('openBugs'),
-            closedBugs: document.getElementById('closedBugs'),
-            commonSeverity: document.getElementById('commonSeverity')
-        };
-
-        if (elements.totalBugs) elements.totalBugs.textContent = stats.total_bugs || 0;
-        if (elements.openBugs) elements.openBugs.textContent = stats.open_bugs || 0;
-        if (elements.closedBugs) elements.closedBugs.textContent = stats.closed_bugs || 0;
-        if (elements.commonSeverity) {
-            const severity = stats.most_common_severity;
-            elements.commonSeverity.textContent = severity ? 
-                severity.charAt(0).toUpperCase() + severity.slice(1) : '-';
+    deleteBug(bugId) {
+        const bug = this.bugs.find(b => b.id === bugId);
+        if (bug && confirm(`Are you sure you want to delete bug #${bugId}: "${bug.title}"?`)) {
+            this.bugs = this.bugs.filter(b => b.id !== bugId);
+            this.saveBugs();
+            this.filterBugs();
+            this.updateStats();
+            this.showToast(`Bug #${bugId} has been deleted!`, 'warning');
         }
-
-        // Update detailed stats if available
-        this.updateDetailedStats();
     }
 
     updateStats() {
-        // Fallback method using local data
         const totalBugs = this.bugs.length;
-        const openBugs = this.bugs.filter(bug => this.getDisplayStatus(bug) === 'open').length;
+        const openBugs = this.bugs.filter(bug => bug.status === 'open').length;
         const closedBugs = totalBugs - openBugs;
         
         // Calculate most common severity
@@ -381,8 +222,6 @@ class BugTracker {
             elements.commonSeverity.textContent = mostCommonSeverity === '-' ? '-' : 
                 mostCommonSeverity.charAt(0).toUpperCase() + mostCommonSeverity.slice(1);
         }
-
-        this.updateDetailedStats();
     }
 
     updateDetailedStats() {
@@ -409,21 +248,21 @@ class BugTracker {
         const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
         const bugsThisWeek = this.bugs.filter(bug => 
-            new Date(bug.created_at) >= oneWeekAgo
+            new Date(bug.dateCreated) >= oneWeekAgo
         ).length;
 
         const resolvedThisWeek = this.bugs.filter(bug => 
-            this.getDisplayStatus(bug) === 'resolved' && new Date(bug.updated_at || bug.created_at) >= oneWeekAgo
+            bug.status === 'resolved' && new Date(bug.dateUpdated) >= oneWeekAgo
         ).length;
 
         // Calculate average resolution time
-        const resolvedBugs = this.bugs.filter(bug => this.getDisplayStatus(bug) === 'resolved');
+        const resolvedBugs = this.bugs.filter(bug => bug.status === 'resolved');
         let avgResolutionTime = 'N/A';
         
         if (resolvedBugs.length > 0) {
             const totalResolutionTime = resolvedBugs.reduce((sum, bug) => {
-                const created = new Date(bug.created_at);
-                const updated = new Date(bug.updated_at || bug.created_at);
+                const created = new Date(bug.dateCreated);
+                const updated = new Date(bug.dateUpdated);
                 return sum + (updated - created);
             }, 0);
             
@@ -443,15 +282,9 @@ class BugTracker {
         if (activityElements.avgResolutionTime) activityElements.avgResolutionTime.textContent = avgResolutionTime;
     }
 
-    formatDate(dateString) {
-        if (!dateString) return 'N/A';
-        
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
+    saveBugs() {
+        localStorage.setItem('bugs', JSON.stringify(this.bugs));
+        localStorage.setItem('nextBugId', this.nextId.toString());
     }
 
     escapeHtml(text) {
