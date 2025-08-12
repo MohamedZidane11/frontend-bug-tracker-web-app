@@ -65,6 +65,9 @@ class BugTracker {
         if (searchInput) searchInput.addEventListener('input', () => this.filterBugs());
         if (severityFilter) severityFilter.addEventListener('change', () => this.filterBugs());
         if (statusFilter) statusFilter.addEventListener('change', () => this.filterBugs());
+
+        // Close status dropdowns when clicking outside
+        document.addEventListener('click', (e) => this.closeStatusDropdowns(e));
     }
 
     async showPage(pageId) {
@@ -104,14 +107,7 @@ class BugTracker {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             
-            const data = await response.json();  // Read ONCE
-
-            // Map bug_id → id for frontend use
-            this.bugs = data.map(bug => ({
-                ...bug,
-                id: bug.bug_id || bug.id  // prefer bug_id, fallback to id
-            }));
-            
+            this.bugs = await response.json();
             this.filteredBugs = [...this.bugs];
             
         } catch (error) {
@@ -143,7 +139,7 @@ class BugTracker {
             title: title,
             description: description,
             severity: severity,
-            reporter: reporter // Django expects 'reporter_name'
+            reporter_name: reporter // Django expects 'reporter_name'
         };
 
         try {
@@ -206,7 +202,41 @@ class BugTracker {
 
     // Convert Django status to display status
     getDisplayStatus(bug) {
-        return bug.status; // Just return the actual status
+        // Return the actual status from Django
+        return bug.status || 'open';
+    }
+
+    // Get available status transitions
+    getStatusTransitions(currentStatus) {
+        const transitions = {
+            'open': ['in_progress', 'resolved', 'closed'],
+            'in_progress': ['open', 'resolved', 'closed'],
+            'resolved': ['open', 'in_progress', 'closed'],
+            'closed': ['open', 'in_progress', 'resolved']
+        };
+        return transitions[currentStatus] || ['resolved'];
+    }
+
+    // Get status display name
+    getStatusDisplayName(status) {
+        const statusNames = {
+            'open': 'Open',
+            'in_progress': 'In Progress',
+            'resolved': 'Resolved',
+            'closed': 'Closed'
+        };
+        return statusNames[status] || status;
+    }
+
+    // Get status CSS class
+    getStatusClass(status) {
+        const statusClasses = {
+            'open': 'status-open',
+            'in_progress': 'status-progress',
+            'resolved': 'status-resolved',
+            'closed': 'status-closed'
+        };
+        return statusClasses[status] || 'status-open';
     }
 
     renderBugs() {
@@ -232,11 +262,20 @@ class BugTracker {
                         ${bug.severity}
                     </span>
                 </td>
-                <td>${this.escapeHtml(bug.reporter)}</td>
+                <td>${this.escapeHtml(bug.reporter_name)}</td>
                 <td>
-                    <span class="status-badge status-${this.getDisplayStatus(bug)}" onclick="bugTracker.toggleStatus(${bug.id})">
-                        ${this.getDisplayStatus(bug)}
-                    </span>
+                    <div class="status-dropdown">
+                        <span class="status-badge ${this.getStatusClass(this.getDisplayStatus(bug))}" onclick="bugTracker.toggleStatusDropdown(${bug.id})">
+                            ${this.getStatusDisplayName(this.getDisplayStatus(bug))} ▼
+                        </span>
+                        <div class="status-options" id="statusOptions${bug.id}" style="display: none;">
+                            ${this.getStatusTransitions(this.getDisplayStatus(bug)).map(status => `
+                                <div class="status-option" onclick="bugTracker.updateBugStatus(${bug.id}, '${status}')">
+                                    <span class="status-badge ${this.getStatusClass(status)}">${this.getStatusDisplayName(status)}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
                 </td>
                 <td>${this.formatDate(bug.created_at)}</td>
                 <td>
@@ -248,13 +287,32 @@ class BugTracker {
         `).join('');
     }
 
-    async toggleStatus(bugId) {
-        const bug = this.bugs.find(b => b.id === bugId);
-        if (!bug) return;
+    // Toggle status dropdown
+    toggleStatusDropdown(bugId) {
+        // Close all other dropdowns first
+        document.querySelectorAll('.status-options').forEach(dropdown => {
+            if (dropdown.id !== `statusOptions${bugId}`) {
+                dropdown.style.display = 'none';
+            }
+        });
 
-        const currentStatus = this.getDisplayStatus(bug);
-        const newStatus = currentStatus === 'resolved' ? 'unresolved' : 'resolved';
-        
+        // Toggle current dropdown
+        const dropdown = document.getElementById(`statusOptions${bugId}`);
+        if (dropdown) {
+            dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+        }
+    }
+
+    // Close dropdowns when clicking outside
+    closeStatusDropdowns(event) {
+        if (!event.target.closest('.status-dropdown')) {
+            document.querySelectorAll('.status-options').forEach(dropdown => {
+                dropdown.style.display = 'none';
+            });
+        }
+    }
+
+    async updateBugStatus(bugId, newStatus) {
         try {
             const response = await fetch(`${this.API_CONFIG.BASE_URL}${this.API_CONFIG.ENDPOINTS.bugDetail(bugId)}`, {
                 method: 'PATCH',
@@ -268,8 +326,10 @@ class BugTracker {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            const action = newStatus === 'resolved' ? 'resolved' : 'reopened';
-            this.showToast(`Bug #${bugId} has been ${action}!`, 'info');
+            this.showToast(`Bug #${bugId} status updated to ${this.getStatusDisplayName(newStatus)}!`, 'success');
+            
+            // Close the dropdown
+            document.getElementById(`statusOptions${bugId}`).style.display = 'none';
             
             // Refresh data
             await this.loadBugsFromAPI();
@@ -282,6 +342,12 @@ class BugTracker {
             console.error('Error updating bug status:', error);
             this.showToast('Error updating bug status: ' + error.message, 'error');
         }
+    }
+
+    async toggleStatus(bugId) {
+        // Legacy method - kept for backward compatibility
+        // Now redirects to the new status dropdown
+        this.toggleStatusDropdown(bugId);
     }
 
     async deleteBug(bugId) {
@@ -419,11 +485,12 @@ class BugTracker {
         ).length;
 
         const resolvedThisWeek = this.bugs.filter(bug => 
-            this.getDisplayStatus(bug) === 'resolved' && new Date(bug.updated_at || bug.created_at) >= oneWeekAgo
+            (bug.status === 'resolved' || bug.status === 'closed') && 
+            new Date(bug.updated_at || bug.created_at) >= oneWeekAgo
         ).length;
 
         // Calculate average resolution time
-        const resolvedBugs = this.bugs.filter(bug => this.getDisplayStatus(bug) === 'resolved');
+        const resolvedBugs = this.bugs.filter(bug => bug.status === 'resolved' || bug.status === 'closed');
         let avgResolutionTime = 'N/A';
         
         if (resolvedBugs.length > 0) {
