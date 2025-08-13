@@ -283,7 +283,7 @@ class BugTracker {
                 <td>${this.escapeHtml(bug.reporter_name)}</td>
                 <td>
                     <div class="status-dropdown">
-                        <span class="status-badge ..." data-action="toggle-status" data-bug-id="${bug.id}">
+                        <span class="status-badge ${this.getStatusClass(this.getDisplayStatus(bug))}" data-action="toggle-status" data-bug-id="${bug.id}">
                         ${this.getStatusDisplayName(this.getDisplayStatus(bug))} ▼
                         </span>
                         <div class="status-options" id="statusOptions${bug.id}" style="display: none;">
@@ -297,7 +297,7 @@ class BugTracker {
                 </td>
                 <td>${this.formatDate(bug.created_at)}</td>
                 <td>
-                    <button class="btn btn-danger" onclick="bugTracker.deleteBug(${bug.id})">
+                    <button class="btn btn-danger" onclick="bugTracker.deleteBug('${bug.id}')">
                         Delete
                     </button>
                 </td>
