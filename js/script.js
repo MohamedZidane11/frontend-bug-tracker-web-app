@@ -66,23 +66,41 @@ class BugTracker {
         if (severityFilter) severityFilter.addEventListener('change', () => this.filterBugs());
         if (statusFilter) statusFilter.addEventListener('change', () => this.filterBugs());
     
-        // ✅ Event delegation for status dropdowns
+        // ✅ Event delegation for status dropdowns and other dynamic elements
         document.addEventListener('click', (e) => {
             // Handle toggle status dropdown
-            if (e.target.matches('[data-action="toggle-status"]')) {
-                const bugId = e.target.getAttribute('data-bug-id');
-                this.toggleStatusDropdown(bugId);
+            if (e.target.matches('[data-action="toggle-status"]') || e.target.closest('[data-action="toggle-status"]')) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const targetElement = e.target.matches('[data-action="toggle-status"]') ? 
+                                    e.target : e.target.closest('[data-action="toggle-status"]');
+                const bugId = targetElement.getAttribute('data-bug-id');
+                
+                if (bugId) {
+                    console.log('Toggling dropdown for bug:', bugId);
+                    this.toggleStatusDropdown(bugId);
+                }
             }
     
             // Handle update status
-            if (e.target.matches('[data-action="update-status"]')) {
-                const bugId = e.target.getAttribute('data-bug-id');
-                const status = e.target.getAttribute('data-status');
-                this.updateBugStatus(bugId, status);
+            else if (e.target.matches('[data-action="update-status"]') || e.target.closest('[data-action="update-status"]')) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const targetElement = e.target.matches('[data-action="update-status"]') ? 
+                                    e.target : e.target.closest('[data-action="update-status"]');
+                const bugId = targetElement.getAttribute('data-bug-id');
+                const status = targetElement.getAttribute('data-status');
+                
+                if (bugId && status) {
+                    console.log('Updating bug status:', bugId, 'to:', status);
+                    this.updateBugStatus(bugId, status);
+                }
             }
     
             // Close dropdowns when clicking outside
-            if (!e.target.closest('.status-dropdown')) {
+            else if (!e.target.closest('.status-dropdown')) {
                 this.closeStatusDropdowns();
             }
         });
@@ -283,12 +301,19 @@ class BugTracker {
                 <td>${this.escapeHtml(bug.reporter_name)}</td>
                 <td>
                     <div class="status-dropdown">
-                        <span class="status-badge ${this.getStatusClass(this.getDisplayStatus(bug))}" data-action="toggle-status" data-bug-id="${bug.id}">
-                        ${this.getStatusDisplayName(this.getDisplayStatus(bug))} ▼
+                        <span class="status-badge ${this.getStatusClass(this.getDisplayStatus(bug))}" 
+                              data-action="toggle-status" 
+                              data-bug-id="${bug.id}"
+                              style="cursor: pointer;">
+                            ${this.getStatusDisplayName(this.getDisplayStatus(bug))} ▼
                         </span>
-                        <div class="status-options" id="statusOptions${bug.id}" style="display: none;">
+                        <div class="status-options" id="statusOptions${bug.id}" style="display: none; position: absolute; background: white; border: 1px solid #ccc; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 1000; min-width: 120px;">
                             ${this.getStatusTransitions(this.getDisplayStatus(bug)).map(status => `
-                            <div class="status-option" data-action="update-status" data-bug-id="${bug.id}" data-status="${status}">
+                                <div class="status-option" 
+                                     data-action="update-status" 
+                                     data-bug-id="${bug.id}" 
+                                     data-status="${status}"
+                                     style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #eee;">
                                     <span class="status-badge ${this.getStatusClass(status)}">${this.getStatusDisplayName(status)}</span>
                                 </div>
                             `).join('')}
@@ -307,6 +332,8 @@ class BugTracker {
 
     // Toggle status dropdown
     toggleStatusDropdown(bugId) {
+        console.log('toggleStatusDropdown called with bugId:', bugId);
+        
         // Close all other dropdowns first
         document.querySelectorAll('.status-options').forEach(dropdown => {
             if (dropdown.id !== `statusOptions${bugId}`) {
@@ -317,7 +344,11 @@ class BugTracker {
         // Toggle current dropdown
         const dropdown = document.getElementById(`statusOptions${bugId}`);
         if (dropdown) {
-            dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+            const isVisible = dropdown.style.display !== 'none';
+            dropdown.style.display = isVisible ? 'none' : 'block';
+            console.log('Dropdown visibility changed to:', dropdown.style.display);
+        } else {
+            console.error('Dropdown not found for bug:', bugId);
         }
     }
 
@@ -329,6 +360,8 @@ class BugTracker {
     }
 
     async updateBugStatus(bugId, newStatus) {
+        console.log('updateBugStatus called with:', bugId, newStatus);
+        
         try {
             const response = await fetch(`${this.API_CONFIG.BASE_URL}${this.API_CONFIG.ENDPOINTS.bugDetail(bugId)}`, {
                 method: 'PATCH',
@@ -339,13 +372,20 @@ class BugTracker {
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                const errorData = await response.json();
+                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
             }
 
+            const updatedBug = await response.json();
+            console.log('Bug status updated successfully:', updatedBug);
+            
             this.showToast(`Bug #${bugId} status updated to ${this.getStatusDisplayName(newStatus)}!`, 'success');
             
             // Close the dropdown
-            document.getElementById(`statusOptions${bugId}`).style.display = 'none';
+            const dropdown = document.getElementById(`statusOptions${bugId}`);
+            if (dropdown) {
+                dropdown.style.display = 'none';
+            }
             
             // Refresh data
             await this.loadBugsFromAPI();
